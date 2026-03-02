@@ -25,6 +25,9 @@ export interface TraktWatchlistSettings {
   tmdbApiKey: string;
   posterSize: PosterSize;
 
+  // Property namespace
+  propertyPrefix: string;
+
   // Folders & file naming
   movieFolder: string;
   showFolder: string;
@@ -34,6 +37,12 @@ export interface TraktWatchlistSettings {
   movieNoteTemplate: string;
   showNoteTemplate: string;
   tagPrefix: string;
+
+  // Sync sources
+  syncWatchlist: boolean;
+  syncFavorites: boolean;
+  syncWatched: boolean;
+  syncRatings: boolean;
 
   // Sync behavior
   syncMovies: boolean;
@@ -61,6 +70,12 @@ export const DEFAULT_MOVIE_TEMPLATE = `# {{title}} ({{year}})
 - **Certification**: {{certification}}
 - **Released**: {{released}}
 
+## Trakt Status
+- **Watchlist**: {{watchlist}}
+- **Watched**: {{watched}} ({{plays}} plays, last: {{last_watched_at}})
+- **Favorite**: {{favorite}}
+- **My Rating**: {{my_rating}}/10
+
 ## Links
 - [Trakt]({{trakt_url}})
 - [IMDB]({{imdb_url}})
@@ -86,6 +101,12 @@ export const DEFAULT_SHOW_TEMPLATE = `# {{title}} ({{year}})
 - **Status**: {{status}}
 - **First Aired**: {{first_aired}}
 
+## Trakt Status
+- **Watchlist**: {{watchlist}}
+- **Watched**: {{watched}} ({{plays}} plays, last: {{last_watched_at}})
+- **Favorite**: {{favorite}}
+- **My Rating**: {{my_rating}}/10
+
 ## Links
 - [Trakt]({{trakt_url}})
 - [IMDB]({{imdb_url}})
@@ -104,13 +125,20 @@ export const DEFAULT_SETTINGS: TraktWatchlistSettings = {
   tmdbApiKey: "",
   posterSize: "w500",
 
-  movieFolder: "Watchlist/Movies",
-  showFolder: "Watchlist/Shows",
+  propertyPrefix: "t_",
+
+  movieFolder: "Trakt/Movies",
+  showFolder: "Trakt/Shows",
   filenameTemplate: "{{title}} ({{year}})",
 
   movieNoteTemplate: DEFAULT_MOVIE_TEMPLATE,
   showNoteTemplate: DEFAULT_SHOW_TEMPLATE,
   tagPrefix: "trakt",
+
+  syncWatchlist: true,
+  syncFavorites: true,
+  syncWatched: false,
+  syncRatings: false,
 
   syncMovies: true,
   syncShows: true,
@@ -198,7 +226,6 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
               return;
             }
             await this.plugin.startAuth();
-            // Refresh settings tab after auth completes
             this.display();
           })
       );
@@ -236,6 +263,24 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
         });
       });
 
+    // ── Property Namespace ──
+    containerEl.createEl("h3", { text: "Property Namespace" });
+
+    new Setting(containerEl)
+      .setName("Property prefix")
+      .setDesc(
+        'Prefixes all frontmatter properties from this plugin. E.g. "t_" → t_title, t_watched. Set to "" for no prefix.'
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("t_")
+          .setValue(this.plugin.settings.propertyPrefix)
+          .onChange(async (value) => {
+            this.plugin.settings.propertyPrefix = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // ── Folders & File Naming ──
     containerEl.createEl("h3", { text: "Folders & File Naming" });
 
@@ -244,7 +289,7 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
       .setDesc("Vault path where movie notes are created.")
       .addText((text) =>
         text
-          .setPlaceholder("Watchlist/Movies")
+          .setPlaceholder("Trakt/Movies")
           .setValue(this.plugin.settings.movieFolder)
           .onChange(async (value) => {
             this.plugin.settings.movieFolder = value.trim();
@@ -257,7 +302,7 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
       .setDesc("Vault path where TV show notes are created.")
       .addText((text) =>
         text
-          .setPlaceholder("Watchlist/Shows")
+          .setPlaceholder("Trakt/Shows")
           .setValue(this.plugin.settings.showFolder)
           .onChange(async (value) => {
             this.plugin.settings.showFolder = value.trim();
@@ -342,12 +387,63 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
       })
     );
 
+    // ── Sync Sources ──
+    containerEl.createEl("h3", { text: "Sync Sources" });
+
+    new Setting(containerEl)
+      .setName("Sync watchlist")
+      .setDesc("Items you want to watch.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.syncWatchlist)
+          .onChange(async (value) => {
+            this.plugin.settings.syncWatchlist = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Sync favorites")
+      .setDesc("Items you've marked as favorites.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.syncFavorites)
+          .onChange(async (value) => {
+            this.plugin.settings.syncFavorites = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Sync watch history")
+      .setDesc("Items you've watched. Adds play count and last watched date. Can be large.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.syncWatched)
+          .onChange(async (value) => {
+            this.plugin.settings.syncWatched = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Sync ratings")
+      .setDesc("Items you've rated (1–10 scale).")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.syncRatings)
+          .onChange(async (value) => {
+            this.plugin.settings.syncRatings = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // ── Sync Behavior ──
     containerEl.createEl("h3", { text: "Sync Behavior" });
 
     new Setting(containerEl)
       .setName("Sync movies")
-      .setDesc("Include movies from your Trakt watchlist.")
+      .setDesc("Include movies.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.syncMovies)
@@ -359,7 +455,7 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Sync TV shows")
-      .setDesc("Include TV shows from your Trakt watchlist.")
+      .setDesc("Include TV shows.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.syncShows)
@@ -427,9 +523,9 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Remove notes for deleted watchlist items")
+      .setName("Remove notes for deleted items")
       .setDesc(
-        "When on, notes for items removed from your Trakt watchlist are moved to trash."
+        "When on, notes for items removed from all synced Trakt sources are moved to trash."
       )
       .addToggle((toggle) =>
         toggle

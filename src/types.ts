@@ -53,6 +53,50 @@ export interface TraktWatchlistItem {
   show?: TraktShow;
 }
 
+export interface TraktWatchedMovieItem {
+  plays: number;
+  last_watched_at: string;
+  last_updated_at: string;
+  movie: TraktMovie;
+}
+
+export interface TraktWatchedShowItem {
+  plays: number;
+  last_watched_at: string;
+  last_updated_at: string;
+  show: TraktShow;
+  seasons?: TraktWatchedSeason[];
+}
+
+export interface TraktWatchedSeason {
+  number: number;
+  episodes: TraktWatchedEpisode[];
+}
+
+export interface TraktWatchedEpisode {
+  number: number;
+  plays: number;
+  last_watched_at: string;
+}
+
+export interface TraktFavoriteItem {
+  rank: number;
+  id: number;
+  listed_at: string;
+  notes: string | null;
+  type: "movie" | "show";
+  movie?: TraktMovie;
+  show?: TraktShow;
+}
+
+export interface TraktRatingItem {
+  rated_at: string;
+  rating: number;
+  type: "movie" | "show";
+  movie?: TraktMovie;
+  show?: TraktShow;
+}
+
 export interface TraktDeviceCodeResponse {
   device_code: string;
   user_code: string;
@@ -84,10 +128,10 @@ export interface TmdbTvResponse {
 
 // ── Internal Types ──
 
-export type WatchlistItemType = "movie" | "show";
+export type ItemType = "movie" | "show";
 
-export interface NormalizedWatchlistItem {
-  type: WatchlistItemType;
+export interface NormalizedItem {
+  type: ItemType;
   title: string;
   year: number;
   ids: TraktIds;
@@ -100,7 +144,6 @@ export interface NormalizedWatchlistItem {
   country: string;
   language: string;
   status: string;
-  listed_at: string;
   // Movie-specific
   tagline?: string;
   released?: string;
@@ -108,8 +151,19 @@ export interface NormalizedWatchlistItem {
   network?: string;
   aired_episodes?: number;
   first_aired?: string;
-  // TMDB poster (populated during sync if TMDB key is set)
+  // TMDB poster
   poster_url?: string;
+  // Source flags (populated during merge)
+  watchlist?: boolean;
+  watchlist_added_at?: string;
+  watched?: boolean;
+  plays?: number;
+  last_watched_at?: string;
+  episodes_watched?: number;
+  favorite?: boolean;
+  favorited_at?: string;
+  my_rating?: number;
+  rated_at?: string;
 }
 
 export interface SyncResult {

@@ -2,69 +2,97 @@ import { App, Notice, TFile, TFolder } from "obsidian";
 import type { TraktWatchlistSettings } from "./settings";
 import type {
   TraktWatchlistItem,
-  NormalizedWatchlistItem,
+  TraktWatchedMovieItem,
+  TraktWatchedShowItem,
+  TraktFavoriteItem,
+  TraktRatingItem,
+  NormalizedItem,
   SyncResult,
+  TraktMovie,
+  TraktShow,
+  TraktIds,
+  ItemType,
 } from "./types";
-import { fetchWatchlist } from "./trakt-api";
+import {
+  fetchWatchlist,
+  fetchWatchedMovies,
+  fetchWatchedShows,
+  fetchFavorites,
+  fetchRatings,
+} from "./trakt-api";
 import { fetchMoviePosterUrl, fetchTvPosterUrl } from "./tmdb-api";
 import { ensureValidToken } from "./trakt-auth";
 import { renderNote, renderFrontmatterOnly } from "./note-renderer";
 import { sanitizeFilename, renderTemplate, parseFrontmatter } from "./utils";
 
-/**
- * Normalize a raw Trakt watchlist item into a flat structure.
- */
-function normalize(raw: TraktWatchlistItem): NormalizedWatchlistItem {
-  if (raw.type === "movie" && raw.movie) {
-    const m = raw.movie;
-    return {
-      type: "movie",
-      title: m.title,
-      year: m.year,
-      ids: m.ids,
-      overview: m.overview || "",
-      genres: m.genres || [],
-      runtime: m.runtime || 0,
-      rating: m.rating || 0,
-      votes: m.votes || 0,
-      certification: m.certification || "",
-      country: m.country || "",
-      language: m.language || "",
-      status: m.status || "",
-      listed_at: raw.listed_at,
-      tagline: m.tagline,
-      released: m.released,
-    };
-  } else if (raw.type === "show" && raw.show) {
-    const s = raw.show;
-    return {
-      type: "show",
-      title: s.title,
-      year: s.year,
-      ids: s.ids,
-      overview: s.overview || "",
-      genres: s.genres || [],
-      runtime: s.runtime || 0,
-      rating: s.rating || 0,
-      votes: s.votes || 0,
-      certification: s.certification || "",
-      country: s.country || "",
-      language: s.language || "",
-      status: s.status || "",
-      listed_at: raw.listed_at,
-      network: s.network,
-      aired_episodes: s.aired_episodes,
-      first_aired: s.first_aired,
-    };
-  }
+// ── Normalization helpers ──
 
-  // Fallback (shouldn't happen)
-  throw new Error(`Unknown watchlist item type: ${raw.type}`);
+function baseFromMovie(m: TraktMovie): NormalizedItem {
+  return {
+    type: "movie",
+    title: m.title,
+    year: m.year,
+    ids: m.ids,
+    overview: m.overview || "",
+    genres: m.genres || [],
+    runtime: m.runtime || 0,
+    rating: m.rating || 0,
+    votes: m.votes || 0,
+    certification: m.certification || "",
+    country: m.country || "",
+    language: m.language || "",
+    status: m.status || "",
+    tagline: m.tagline,
+    released: m.released,
+  };
 }
 
-/**
- * Ensure a folder exists in the vault, creating it if necessary.
- */
+function baseFromShow(s: TraktShow): NormalizedItem {
+  return {
+    type: "show",
+    title: s.title,
+    year: s.year,
+    ids: s.ids,
+    overview: s.overview || "",
+    genres: s.genres || [],
+    runtime: s.runtime || 0,
+    rating: s.rating || 0,
+    votes: s.votes || 0,
+    certification: s.certification || "",
+    country: s.country || "",
+    language: s.language || "",
+    status: s.status || "",
+    network: s.network,
+    aired_episodes: s.aired_episodes,
+    first_aired: s.first_aired,
+  };
+}
+
+function getOrCreateItem(
+  map: Map<number, NormalizedItem>,
+  ids: TraktIds,
+  type: ItemType,
+  movie?: TraktMovie,
+  show?: TraktShow
+): NormalizedItem {
+  const existing = map.get(ids.trakt);
+  if (existing) return existing;
+
+  let item: NormalizedItem;
+  if (type === "movie" && movie) {
+    item = baseFromMovie(movie);
+  } else if (type === "show" && show) {
+    item = baseFromShow(show);
+  } else {
+    throw new Error(`Cannot create item: missing ${type} data`);
+  }
+
+  map.set(ids.trakt, item);
+  return item;
+}
+
+// ── Folder & file helpers ──
+
 async function ensureFolder(app: App, path: string): Promise<void> {
   const existing = app.vault.getAbstractFileByPath(path);
   if (existing instanceof TFolder) return;
@@ -73,11 +101,8 @@ async function ensureFolder(app: App, path: string): Promise<void> {
   }
 }
 
-/**
- * Build the filename for a watchlist item based on the template.
- */
 function buildFilename(
-  item: NormalizedWatchlistItem,
+  item: NormalizedItem,
   template: string
 ): string {
   const context: Record<string, unknown> = {
@@ -91,21 +116,25 @@ function buildFilename(
 }
 
 /**
- * Build a map of trakt_id -> TFile for all existing notes in a folder.
+ * Scan a folder for notes and extract the trakt_id from frontmatter.
+ * The trakt_id property key depends on the configured prefix.
  */
 async function scanExistingNotes(
   app: App,
-  folderPath: string
+  folderPath: string,
+  propertyPrefix: string
 ): Promise<Map<number, TFile>> {
   const map = new Map<number, TFile>();
   const folder = app.vault.getAbstractFileByPath(folderPath);
   if (!(folder instanceof TFolder)) return map;
 
+  const idKey = `${propertyPrefix}id`;
+
   for (const child of folder.children) {
     if (!(child instanceof TFile) || child.extension !== "md") continue;
     const content = await app.vault.cachedRead(child);
     const { frontmatter } = parseFrontmatter(content);
-    const traktId = parseInt(frontmatter["trakt_id"], 10);
+    const traktId = parseInt(frontmatter[idKey], 10);
     if (!isNaN(traktId)) {
       map.set(traktId, child);
     }
@@ -113,6 +142,8 @@ async function scanExistingNotes(
 
   return map;
 }
+
+// ── Sync Engine ──
 
 export class SyncEngine {
   private app: App;
@@ -149,58 +180,36 @@ export class SyncEngine {
       // 1. Ensure valid token
       await ensureValidToken(this.settings, this.saveSettings);
 
-      // 2. Fetch watchlist items from Trakt
-      const allItems: NormalizedWatchlistItem[] = [];
+      // 2. Fetch from all enabled sources and merge by trakt_id
+      const mergedMovies = new Map<number, NormalizedItem>();
+      const mergedShows = new Map<number, NormalizedItem>();
 
       if (this.settings.syncMovies) {
-        const rawMovies = await fetchWatchlist(
-          "movies",
-          this.settings.clientId,
-          this.settings.accessToken
-        );
-        allItems.push(...rawMovies.map(normalize));
+        await this.fetchAndMergeMovies(mergedMovies);
       }
-
       if (this.settings.syncShows) {
-        const rawShows = await fetchWatchlist(
-          "shows",
-          this.settings.clientId,
-          this.settings.accessToken
-        );
-        allItems.push(...rawShows.map(normalize));
+        await this.fetchAndMergeShows(mergedShows);
       }
 
-      // 3. Build remote map
-      const remoteMovies = new Map<number, NormalizedWatchlistItem>();
-      const remoteShows = new Map<number, NormalizedWatchlistItem>();
-
-      for (const item of allItems) {
-        if (item.type === "movie") {
-          remoteMovies.set(item.ids.trakt, item);
-        } else {
-          remoteShows.set(item.ids.trakt, item);
-        }
-      }
-
-      // 4. Process movies
+      // 3. Process movies
       if (this.settings.syncMovies) {
-        await this.syncType(
-          remoteMovies,
+        await this.reconcileType(
+          mergedMovies,
           this.settings.movieFolder,
           result
         );
       }
 
-      // 5. Process shows
+      // 4. Process shows
       if (this.settings.syncShows) {
-        await this.syncType(
-          remoteShows,
+        await this.reconcileType(
+          mergedShows,
           this.settings.showFolder,
           result
         );
       }
 
-      // 6. Show result
+      // 5. Show result
       const msg = `Sync complete: ${result.added} added, ${result.updated} updated, ${result.removed} removed${result.failed > 0 ? `, ${result.failed} failed` : ""}`;
       new Notice(msg, 5000);
     } catch (e) {
@@ -215,19 +224,154 @@ export class SyncEngine {
     return result;
   }
 
-  private async syncType(
-    remoteItems: Map<number, NormalizedWatchlistItem>,
+  /**
+   * Fetch from all enabled sources for movies and merge into the map.
+   */
+  private async fetchAndMergeMovies(
+    map: Map<number, NormalizedItem>
+  ): Promise<void> {
+    const { clientId, accessToken } = this.settings;
+
+    // Watchlist
+    if (this.settings.syncWatchlist) {
+      const items = await fetchWatchlist("movies", clientId, accessToken);
+      for (const raw of items) {
+        if (!raw.movie) continue;
+        const item = getOrCreateItem(
+          map, raw.movie.ids, "movie", raw.movie
+        );
+        item.watchlist = true;
+        item.watchlist_added_at = raw.listed_at;
+      }
+    }
+
+    // Watched
+    if (this.settings.syncWatched) {
+      const items = await fetchWatchedMovies(clientId, accessToken);
+      for (const raw of items) {
+        const item = getOrCreateItem(
+          map, raw.movie.ids, "movie", raw.movie
+        );
+        item.watched = true;
+        item.plays = raw.plays;
+        item.last_watched_at = raw.last_watched_at;
+      }
+    }
+
+    // Favorites
+    if (this.settings.syncFavorites) {
+      const items = await fetchFavorites("movies", clientId, accessToken);
+      for (const raw of items) {
+        if (!raw.movie) continue;
+        const item = getOrCreateItem(
+          map, raw.movie.ids, "movie", raw.movie
+        );
+        item.favorite = true;
+        item.favorited_at = raw.listed_at;
+      }
+    }
+
+    // Ratings
+    if (this.settings.syncRatings) {
+      const items = await fetchRatings("movies", clientId, accessToken);
+      for (const raw of items) {
+        if (!raw.movie) continue;
+        const item = getOrCreateItem(
+          map, raw.movie.ids, "movie", raw.movie
+        );
+        item.my_rating = raw.rating;
+        item.rated_at = raw.rated_at;
+      }
+    }
+  }
+
+  /**
+   * Fetch from all enabled sources for shows and merge into the map.
+   */
+  private async fetchAndMergeShows(
+    map: Map<number, NormalizedItem>
+  ): Promise<void> {
+    const { clientId, accessToken } = this.settings;
+
+    // Watchlist
+    if (this.settings.syncWatchlist) {
+      const items = await fetchWatchlist("shows", clientId, accessToken);
+      for (const raw of items) {
+        if (!raw.show) continue;
+        const item = getOrCreateItem(
+          map, raw.show.ids, "show", undefined, raw.show
+        );
+        item.watchlist = true;
+        item.watchlist_added_at = raw.listed_at;
+      }
+    }
+
+    // Watched
+    if (this.settings.syncWatched) {
+      const items = await fetchWatchedShows(clientId, accessToken);
+      for (const raw of items) {
+        const item = getOrCreateItem(
+          map, raw.show.ids, "show", undefined, raw.show
+        );
+        item.watched = true;
+        item.plays = raw.plays;
+        item.last_watched_at = raw.last_watched_at;
+        // Count total episodes watched from seasons data
+        if (raw.seasons) {
+          let count = 0;
+          for (const season of raw.seasons) {
+            count += season.episodes.length;
+          }
+          item.episodes_watched = count;
+        }
+      }
+    }
+
+    // Favorites
+    if (this.settings.syncFavorites) {
+      const items = await fetchFavorites("shows", clientId, accessToken);
+      for (const raw of items) {
+        if (!raw.show) continue;
+        const item = getOrCreateItem(
+          map, raw.show.ids, "show", undefined, raw.show
+        );
+        item.favorite = true;
+        item.favorited_at = raw.listed_at;
+      }
+    }
+
+    // Ratings
+    if (this.settings.syncRatings) {
+      const items = await fetchRatings("shows", clientId, accessToken);
+      for (const raw of items) {
+        if (!raw.show) continue;
+        const item = getOrCreateItem(
+          map, raw.show.ids, "show", undefined, raw.show
+        );
+        item.my_rating = raw.rating;
+        item.rated_at = raw.rated_at;
+      }
+    }
+  }
+
+  /**
+   * Reconcile merged items against the vault for a given type (movies or shows).
+   */
+  private async reconcileType(
+    mergedItems: Map<number, NormalizedItem>,
     folderPath: string,
     result: SyncResult
   ): Promise<void> {
-    // Ensure folder exists
     await ensureFolder(this.app, folderPath);
 
-    // Scan existing notes
-    const localNotes = await scanExistingNotes(this.app, folderPath);
+    const localNotes = await scanExistingNotes(
+      this.app,
+      folderPath,
+      this.settings.propertyPrefix
+    );
 
-    // Compute TO_CREATE and TO_UPDATE
-    for (const [traktId, item] of remoteItems) {
+    // Create or update
+    for (const [traktId, item] of mergedItems) {
       try {
         // Fetch poster if TMDB key is configured
         if (this.settings.tmdbApiKey && item.ids.tmdb) {
@@ -278,10 +422,10 @@ export class SyncEngine {
       }
     }
 
-    // Compute TO_REMOVE
+    // Remove notes that are no longer in ANY synced source
     if (this.settings.deleteRemovedItems) {
       for (const [traktId, file] of localNotes) {
-        if (!remoteItems.has(traktId)) {
+        if (!mergedItems.has(traktId)) {
           try {
             await this.app.vault.trash(file, true);
             result.removed++;

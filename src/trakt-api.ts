@@ -3,6 +3,10 @@ import type {
   TraktDeviceCodeResponse,
   TraktTokenResponse,
   TraktWatchlistItem,
+  TraktWatchedMovieItem,
+  TraktWatchedShowItem,
+  TraktFavoriteItem,
+  TraktRatingItem,
 } from "./types";
 
 const TRAKT_BASE = "https://api.trakt.tv";
@@ -138,18 +142,19 @@ export async function refreshAccessToken(
 }
 
 /**
- * Fetch all watchlist items of a given type, handling pagination.
+ * Generic paginated GET for Trakt sync endpoints.
  */
-export async function fetchWatchlist(
-  type: "movies" | "shows",
+async function fetchPaginated<T>(
+  path: string,
   clientId: string,
-  accessToken: string
-): Promise<TraktWatchlistItem[]> {
-  const items: TraktWatchlistItem[] = [];
+  accessToken: string,
+  label: string
+): Promise<T[]> {
+  const items: T[] = [];
   let page = 1;
 
   while (true) {
-    const url = `${TRAKT_BASE}/sync/watchlist/${type}?extended=full&page=${page}&limit=100`;
+    const url = `${TRAKT_BASE}${path}${path.includes("?") ? "&" : "?"}page=${page}&limit=100`;
     const resp = await requestUrl({
       url,
       method: "GET",
@@ -180,16 +185,15 @@ export async function fetchWatchlist(
     }
     if (resp.status !== 200) {
       throw new TraktApiError(
-        `Watchlist fetch failed: ${resp.status}`,
+        `${label} fetch failed: ${resp.status}`,
         resp.status,
         false
       );
     }
 
-    const pageItems = resp.json as TraktWatchlistItem[];
+    const pageItems = resp.json as T[];
     items.push(...pageItems);
 
-    // Check pagination headers
     const pageCount = parseInt(
       resp.headers["x-pagination-page-count"] || "1",
       10
@@ -199,4 +203,82 @@ export async function fetchWatchlist(
   }
 
   return items;
+}
+
+/**
+ * Fetch all watchlist items of a given type.
+ */
+export async function fetchWatchlist(
+  type: "movies" | "shows",
+  clientId: string,
+  accessToken: string
+): Promise<TraktWatchlistItem[]> {
+  return fetchPaginated<TraktWatchlistItem>(
+    `/sync/watchlist/${type}?extended=full`,
+    clientId,
+    accessToken,
+    "Watchlist"
+  );
+}
+
+/**
+ * Fetch all watched movies.
+ */
+export async function fetchWatchedMovies(
+  clientId: string,
+  accessToken: string
+): Promise<TraktWatchedMovieItem[]> {
+  return fetchPaginated<TraktWatchedMovieItem>(
+    `/sync/watched/movies?extended=full`,
+    clientId,
+    accessToken,
+    "Watched movies"
+  );
+}
+
+/**
+ * Fetch all watched shows.
+ */
+export async function fetchWatchedShows(
+  clientId: string,
+  accessToken: string
+): Promise<TraktWatchedShowItem[]> {
+  return fetchPaginated<TraktWatchedShowItem>(
+    `/sync/watched/shows?extended=full`,
+    clientId,
+    accessToken,
+    "Watched shows"
+  );
+}
+
+/**
+ * Fetch all favorite items of a given type.
+ */
+export async function fetchFavorites(
+  type: "movies" | "shows",
+  clientId: string,
+  accessToken: string
+): Promise<TraktFavoriteItem[]> {
+  return fetchPaginated<TraktFavoriteItem>(
+    `/sync/favorites/${type}?extended=full`,
+    clientId,
+    accessToken,
+    "Favorites"
+  );
+}
+
+/**
+ * Fetch all rated items of a given type.
+ */
+export async function fetchRatings(
+  type: "movies" | "shows",
+  clientId: string,
+  accessToken: string
+): Promise<TraktRatingItem[]> {
+  return fetchPaginated<TraktRatingItem>(
+    `/sync/ratings/${type}?extended=full`,
+    clientId,
+    accessToken,
+    "Ratings"
+  );
 }
