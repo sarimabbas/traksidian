@@ -1,14 +1,14 @@
 import { Notice, Plugin } from "obsidian";
 import {
   DEFAULT_SETTINGS,
-  TraktWatchlistSettingTab,
-  type TraktWatchlistSettings,
+  TraksidianSettingTab,
+  type TraksidianSettings,
 } from "./settings";
 import { AuthModal } from "./trakt-auth";
 import { SyncEngine } from "./sync-engine";
 
-export default class TraktWatchlistPlugin extends Plugin {
-  settings: TraktWatchlistSettings = DEFAULT_SETTINGS;
+export default class TraksidianPlugin extends Plugin {
+  settings: TraksidianSettings = DEFAULT_SETTINGS;
   private syncEngine!: SyncEngine;
   private autoSyncIntervalId: number | null = null;
   private statusBarEl: HTMLElement | null = null;
@@ -23,7 +23,7 @@ export default class TraktWatchlistPlugin extends Plugin {
     );
 
     // Settings tab
-    this.addSettingTab(new TraktWatchlistSettingTab(this.app, this));
+    this.addSettingTab(new TraksidianSettingTab(this.app, this));
 
     // Commands
     this.addCommand({
@@ -73,7 +73,7 @@ export default class TraktWatchlistPlugin extends Plugin {
     });
 
     // Ribbon icon
-    this.addRibbonIcon("film", "Sync Trakt Watchlist", async () => {
+    this.addRibbonIcon("film", "Sync Traksidian", async () => {
       if (!this.settings.accessToken) {
         new Notice(
           "Not connected to Trakt. Use Settings or the command palette to connect."
@@ -167,7 +167,7 @@ export default class TraktWatchlistPlugin extends Plugin {
 
   private updateStatusBar(status: string) {
     if (this.statusBarEl) {
-      this.statusBarEl.setText(`Trakt: ${status}`);
+      this.statusBarEl.setText(`Traksidian: ${status}`);
     }
   }
 }

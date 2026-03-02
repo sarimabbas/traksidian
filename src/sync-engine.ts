@@ -1,5 +1,5 @@
 import { App, Notice, TFile, TFolder } from "obsidian";
-import type { TraktWatchlistSettings } from "./settings";
+import type { TraksidianSettings } from "./settings";
 import type {
   TraktWatchlistItem,
   TraktWatchedMovieItem,
@@ -69,13 +69,14 @@ function baseFromShow(s: TraktShow): NormalizedItem {
 }
 
 function getOrCreateItem(
-  map: Map<number, NormalizedItem>,
+  map: Map<string, NormalizedItem>,
   ids: TraktIds,
   type: ItemType,
   movie?: TraktMovie,
   show?: TraktShow
 ): NormalizedItem {
-  const existing = map.get(ids.trakt);
+  const key = `${type}:${ids.trakt}`;
+  const existing = map.get(key);
   if (existing) return existing;
 
   let item: NormalizedItem;
@@ -87,7 +88,7 @@ function getOrCreateItem(
     throw new Error(`Cannot create item: missing ${type} data`);
   }
 
-  map.set(ids.trakt, item);
+  map.set(key, item);
   return item;
 }
 
@@ -116,27 +117,30 @@ function buildFilename(
 }
 
 /**
- * Scan a folder for notes and extract the trakt_id from frontmatter.
- * The trakt_id property key depends on the configured prefix.
+ * Scan a folder for notes and extract the composite "type:trakt_id" key from
+ * frontmatter. Both the id and type properties are read so that movies and
+ * shows sharing the same numeric Trakt ID don't collide.
  */
 async function scanExistingNotes(
   app: App,
   folderPath: string,
   propertyPrefix: string
-): Promise<Map<number, TFile>> {
-  const map = new Map<number, TFile>();
+): Promise<Map<string, TFile>> {
+  const map = new Map<string, TFile>();
   const folder = app.vault.getAbstractFileByPath(folderPath);
   if (!(folder instanceof TFolder)) return map;
 
   const idKey = `${propertyPrefix}id`;
+  const typeKey = `${propertyPrefix}type`;
 
   for (const child of folder.children) {
     if (!(child instanceof TFile) || child.extension !== "md") continue;
     const content = await app.vault.cachedRead(child);
     const { frontmatter } = parseFrontmatter(content);
     const traktId = parseInt(frontmatter[idKey], 10);
-    if (!isNaN(traktId)) {
-      map.set(traktId, child);
+    const type = frontmatter[typeKey];
+    if (!isNaN(traktId) && (type === "movie" || type === "show")) {
+      map.set(`${type}:${traktId}`, child);
     }
   }
 
@@ -147,13 +151,13 @@ async function scanExistingNotes(
 
 export class SyncEngine {
   private app: App;
-  private settings: TraktWatchlistSettings;
+  private settings: TraksidianSettings;
   private saveSettings: () => Promise<void>;
   private syncing = false;
 
   constructor(
     app: App,
-    settings: TraktWatchlistSettings,
+    settings: TraksidianSettings,
     saveSettings: () => Promise<void>
   ) {
     this.app = app;
@@ -180,42 +184,27 @@ export class SyncEngine {
       // 1. Ensure valid token
       await ensureValidToken(this.settings, this.saveSettings);
 
-      // 2. Fetch from all enabled sources and merge by trakt_id
-      const mergedMovies = new Map<number, NormalizedItem>();
-      const mergedShows = new Map<number, NormalizedItem>();
+      // 2. Fetch from all enabled sources and merge into a single map keyed
+      //    by "type:trakt_id" to avoid cross-type ID collisions.
+      const merged = new Map<string, NormalizedItem>();
 
       if (this.settings.syncMovies) {
-        await this.fetchAndMergeMovies(mergedMovies);
+        await this.fetchAndMergeMovies(merged);
       }
       if (this.settings.syncShows) {
-        await this.fetchAndMergeShows(mergedShows);
+        await this.fetchAndMergeShows(merged);
       }
 
-      // 3. Process movies
-      if (this.settings.syncMovies) {
-        await this.reconcileType(
-          mergedMovies,
-          this.settings.movieFolder,
-          result
-        );
-      }
+      // 3. Reconcile all items into the single notes folder
+      await this.reconcileType(merged, this.settings.folder, result);
 
-      // 4. Process shows
-      if (this.settings.syncShows) {
-        await this.reconcileType(
-          mergedShows,
-          this.settings.showFolder,
-          result
-        );
-      }
-
-      // 5. Show result
+      // 4. Show result
       const msg = `Sync complete: ${result.added} added, ${result.updated} updated, ${result.removed} removed${result.failed > 0 ? `, ${result.failed} failed` : ""}`;
       new Notice(msg, 5000);
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Unknown error during sync.";
-      new Notice(`Trakt sync failed: ${msg}`, 10000);
+      new Notice(`Traksidian sync failed: ${msg}`, 10000);
       result.errors.push(msg);
     } finally {
       this.syncing = false;
@@ -228,7 +217,7 @@ export class SyncEngine {
    * Fetch from all enabled sources for movies and merge into the map.
    */
   private async fetchAndMergeMovies(
-    map: Map<number, NormalizedItem>
+    map: Map<string, NormalizedItem>
   ): Promise<void> {
     const { clientId, accessToken } = this.settings;
 
@@ -289,7 +278,7 @@ export class SyncEngine {
    * Fetch from all enabled sources for shows and merge into the map.
    */
   private async fetchAndMergeShows(
-    map: Map<number, NormalizedItem>
+    map: Map<string, NormalizedItem>
   ): Promise<void> {
     const { clientId, accessToken } = this.settings;
 
@@ -355,10 +344,10 @@ export class SyncEngine {
   }
 
   /**
-   * Reconcile merged items against the vault for a given type (movies or shows).
+   * Reconcile merged items against the vault for the configured folder.
    */
   private async reconcileType(
-    mergedItems: Map<number, NormalizedItem>,
+    mergedItems: Map<string, NormalizedItem>,
     folderPath: string,
     result: SyncResult
   ): Promise<void> {
@@ -371,7 +360,7 @@ export class SyncEngine {
     );
 
     // Create or update
-    for (const [traktId, item] of mergedItems) {
+    for (const [key, item] of mergedItems) {
       try {
         // Fetch poster if TMDB key is configured
         if (this.settings.tmdbApiKey && item.ids.tmdb) {
@@ -384,7 +373,7 @@ export class SyncEngine {
           );
         }
 
-        const existingFile = localNotes.get(traktId);
+        const existingFile = localNotes.get(key);
 
         if (!existingFile) {
           // CREATE
@@ -424,8 +413,8 @@ export class SyncEngine {
 
     // Remove notes that are no longer in ANY synced source
     if (this.settings.deleteRemovedItems) {
-      for (const [traktId, file] of localNotes) {
-        if (!mergedItems.has(traktId)) {
+      for (const [key, file] of localNotes) {
+        if (!mergedItems.has(key)) {
           try {
             await this.app.vault.trash(file, true);
             result.removed++;

@@ -5,7 +5,7 @@ import {
   refreshAccessToken,
   TraktApiError,
 } from "./trakt-api";
-import type { TraktWatchlistSettings } from "./settings";
+import type { TraksidianSettings } from "./settings";
 
 /**
  * Modal that displays the device auth flow UI.
@@ -14,12 +14,12 @@ import type { TraktWatchlistSettings } from "./settings";
 export class AuthModal extends Modal {
   private cancelled = false;
   private pollInterval: number | null = null;
-  private settings: TraktWatchlistSettings;
+  private settings: TraksidianSettings;
   private onSuccess: () => Promise<void>;
 
   constructor(
     app: App,
-    settings: TraktWatchlistSettings,
+    settings: TraksidianSettings,
     onSuccess: () => Promise<void>
   ) {
     super(app);
@@ -159,7 +159,7 @@ export class AuthModal extends Modal {
  * Throws if refresh fails (caller should prompt re-auth).
  */
 export async function ensureValidToken(
-  settings: TraktWatchlistSettings,
+  settings: TraksidianSettings,
   saveSettings: () => Promise<void>
 ): Promise<void> {
   if (!settings.accessToken || !settings.refreshToken) {

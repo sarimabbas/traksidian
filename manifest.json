@@ -1,9 +1,9 @@
 {
-  "id": "trakt-watchlist",
-  "name": "Trakt Watchlist",
+  "id": "traksidian",
+  "name": "Traksidian",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Sync your Trakt.tv watchlist to Obsidian notes with rich metadata and poster images.",
+  "description": "Sync your Trakt.tv watchlist, watch history, favorites, and ratings to Obsidian notes.",
   "author": "sarimabbas",
   "isDesktopOnly": false
 }

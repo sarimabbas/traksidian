@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-trakt-watchlist",
+  "name": "traksidian",
   "version": "1.0.0",
-  "description": "Sync your Trakt.tv watchlist to Obsidian notes",
+  "description": "Sync your Trakt.tv watchlist, watch history, favorites, and ratings to Obsidian notes.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",

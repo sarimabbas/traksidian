@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice } from "obsidian";
-import type TraktWatchlistPlugin from "./main";
+import type TraksidianPlugin from "./main";
 
 export const POSTER_SIZES = [
   "w92",
@@ -13,7 +13,7 @@ export const POSTER_SIZES = [
 
 export type PosterSize = (typeof POSTER_SIZES)[number];
 
-export interface TraktWatchlistSettings {
+export interface TraksidianSettings {
   // Authentication
   clientId: string;
   clientSecret: string;
@@ -29,8 +29,7 @@ export interface TraktWatchlistSettings {
   propertyPrefix: string;
 
   // Folders & file naming
-  movieFolder: string;
-  showFolder: string;
+  folder: string;
   filenameTemplate: string;
 
   // Note templates
@@ -115,7 +114,7 @@ export const DEFAULT_SHOW_TEMPLATE = `# {{title}} ({{year}})
 
 `;
 
-export const DEFAULT_SETTINGS: TraktWatchlistSettings = {
+export const DEFAULT_SETTINGS: TraksidianSettings = {
   clientId: "",
   clientSecret: "",
   accessToken: "",
@@ -127,8 +126,7 @@ export const DEFAULT_SETTINGS: TraktWatchlistSettings = {
 
   propertyPrefix: "t_",
 
-  movieFolder: "Trakt/Movies",
-  showFolder: "Trakt/Shows",
+  folder: "Trakt",
   filenameTemplate: "{{title}} ({{year}})",
 
   movieNoteTemplate: DEFAULT_MOVIE_TEMPLATE,
@@ -149,10 +147,10 @@ export const DEFAULT_SETTINGS: TraktWatchlistSettings = {
   deleteRemovedItems: false,
 };
 
-export class TraktWatchlistSettingTab extends PluginSettingTab {
-  plugin: TraktWatchlistPlugin;
+export class TraksidianSettingTab extends PluginSettingTab {
+  plugin: TraksidianPlugin;
 
-  constructor(app: App, plugin: TraktWatchlistPlugin) {
+  constructor(app: App, plugin: TraksidianPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -285,27 +283,14 @@ export class TraktWatchlistSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Folders & File Naming" });
 
     new Setting(containerEl)
-      .setName("Movie notes folder")
-      .setDesc("Vault path where movie notes are created.")
+      .setName("Notes folder")
+      .setDesc("Vault path where all Trakt notes are created. Movies and shows are distinguished by t_type frontmatter and tags.")
       .addText((text) =>
         text
-          .setPlaceholder("Trakt/Movies")
-          .setValue(this.plugin.settings.movieFolder)
+          .setPlaceholder("Trakt")
+          .setValue(this.plugin.settings.folder)
           .onChange(async (value) => {
-            this.plugin.settings.movieFolder = value.trim();
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("TV show notes folder")
-      .setDesc("Vault path where TV show notes are created.")
-      .addText((text) =>
-        text
-          .setPlaceholder("Trakt/Shows")
-          .setValue(this.plugin.settings.showFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.showFolder = value.trim();
+            this.plugin.settings.folder = value.trim();
             await this.plugin.saveSettings();
           })
       );

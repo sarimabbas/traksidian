@@ -1,5 +1,5 @@
 import type { NormalizedItem } from "./types";
-import type { TraktWatchlistSettings } from "./settings";
+import type { TraksidianSettings } from "./settings";
 import { renderTemplate, toFrontmatter } from "./utils";
 
 /**
@@ -64,7 +64,7 @@ function buildTemplateContext(
  */
 function buildFrontmatterData(
   item: NormalizedItem,
-  settings: TraktWatchlistSettings
+  settings: TraksidianSettings
 ): Record<string, unknown> {
   const p = settings.propertyPrefix;
   const tagPfx = settings.tagPrefix;
@@ -164,7 +164,7 @@ function buildFrontmatterData(
  */
 export function renderNote(
   item: NormalizedItem,
-  settings: TraktWatchlistSettings
+  settings: TraksidianSettings
 ): string {
   const fmData = buildFrontmatterData(item, settings);
   const frontmatter = toFrontmatter(fmData);
@@ -186,7 +186,7 @@ export function renderNote(
  */
 export function renderFrontmatterOnly(
   item: NormalizedItem,
-  settings: TraktWatchlistSettings
+  settings: TraksidianSettings
 ): string {
   const fmData = buildFrontmatterData(item, settings);
   return toFrontmatter(fmData);
