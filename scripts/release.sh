@@ -43,11 +43,8 @@ node -e "
   fs.writeFileSync('versions.json', JSON.stringify(versions, null, 2) + '\n');
 "
 
-# Build
-npm run build
-
 # Commit
-git add manifest.json package.json package-lock.json versions.json main.js
+git add manifest.json package.json package-lock.json versions.json
 git commit -m "chore: release $VERSION"
 
 # Tag

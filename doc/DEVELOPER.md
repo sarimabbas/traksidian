@@ -36,7 +36,7 @@ trakt/
 ├── doc/
 │   ├── MANUAL.md        # End-user manual
 │   └── DEVELOPER.md     # This file
-├── main.js              # Compiled output (checked in for Obsidian to load)
+├── main.js              # Compiled output (gitignored — attached to GitHub releases)
 ├── manifest.json        # Plugin metadata (id, name, version, minAppVersion)
 ├── styles.css           # Optional CSS loaded by Obsidian
 ├── esbuild.config.mjs   # Bundler config
@@ -44,9 +44,6 @@ trakt/
 └── package.json
 ```
 
-### Why `main.js` is checked in
-
-Obsidian loads `main.js` directly from the plugin folder. It is not fetched from npm. The compiled file must be committed so the plugin works when installed from GitHub releases.
 
 ---
 
