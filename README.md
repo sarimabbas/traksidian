@@ -2,6 +2,8 @@
 
 Sync your Trakt.tv watchlist, watch history, favorites, and ratings to Obsidian notes.
 
+![bases_view](bases_view.png)
+
 ## Features
 
 - Creates one Markdown note per movie or TV show with frontmatter, a customizable body template, and optional tags
@@ -39,6 +41,12 @@ Sync your Trakt.tv watchlist, watch history, favorites, and ratings to Obsidian 
 4. Run the command **Traksidian: Sync watchlist**
 
 For full configuration options, see the [User Manual](doc/MANUAL.md).
+
+## Screenshots
+
+![graph_view](graph_view.png)
+
+![note_view](note_view.png)
 
 ## License
 
