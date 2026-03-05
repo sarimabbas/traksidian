@@ -68,7 +68,13 @@ function formatYamlValue(value: unknown): string {
       value === "null" ||
       value === ""
     ) {
-      return `"${value.replace(/"/g, '\\"')}"`;
+      return `"${value
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r")
+        .replace(/\t/g, "\\t")
+      }"`;
     }
     return value;
   }

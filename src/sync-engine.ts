@@ -205,11 +205,10 @@ export class SyncEngine {
       let msg = `Sync complete: ${result.added} added, ${result.updated} updated, ${result.removed} removed`;
       if (result.failed > 0) {
         msg += `, ${result.failed} failed`;
-        console.group(`[Traksidian] Sync completed with ${result.failed} failure(s)`);
+        console.error(`[Traksidian] Sync completed with ${result.failed} failure(s):`);
         for (const err of result.errors) {
           console.error(err);
         }
-        console.groupEnd();
       }
       new Notice(msg, result.failed > 0 ? 10000 : 5000);
       if (result.failed > 0) {
