@@ -66,7 +66,7 @@ function buildTemplateContext(
  * Build the YAML frontmatter data object for an item.
  * ALL keys are prefixed with settings.propertyPrefix.
  */
-function buildFrontmatterData(
+export function buildFrontmatterData(
   item: NormalizedItem,
   settings: TraksidianSettings
 ): Record<string, unknown> {

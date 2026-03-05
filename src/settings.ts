@@ -160,7 +160,7 @@ export class TraksidianSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     // ── Authentication ──
-    containerEl.createEl("h3", { text: "Authentication" });
+    new Setting(containerEl).setName("Authentication").setHeading();
 
     new Setting(containerEl)
       .setName("Trakt Client ID")
@@ -229,8 +229,8 @@ export class TraksidianSettingTab extends PluginSettingTab {
       );
     }
 
-    // ── TMDB (Poster Images) ──
-    containerEl.createEl("h3", { text: "TMDB (Poster Images)" });
+    // ── TMDB (poster images) ──
+    new Setting(containerEl).setName("TMDB (poster images)").setHeading();
 
     new Setting(containerEl)
       .setName("TMDB API key")
@@ -261,8 +261,8 @@ export class TraksidianSettingTab extends PluginSettingTab {
         });
       });
 
-    // ── Property Namespace ──
-    containerEl.createEl("h3", { text: "Property Namespace" });
+    // ── Property namespace ──
+    new Setting(containerEl).setName("Property namespace").setHeading();
 
     new Setting(containerEl)
       .setName("Property prefix")
@@ -279,8 +279,8 @@ export class TraksidianSettingTab extends PluginSettingTab {
           })
       );
 
-    // ── Folders & File Naming ──
-    containerEl.createEl("h3", { text: "Folders & File Naming" });
+    // ── Folders & file naming ──
+    new Setting(containerEl).setName("Folders & file naming").setHeading();
 
     new Setting(containerEl)
       .setName("Notes folder")
@@ -310,8 +310,8 @@ export class TraksidianSettingTab extends PluginSettingTab {
           })
       );
 
-    // ── Note Templates ──
-    containerEl.createEl("h3", { text: "Note Templates" });
+    // ── Note templates ──
+    new Setting(containerEl).setName("Note templates").setHeading();
 
     new Setting(containerEl)
       .setName("Tag prefix")
@@ -372,8 +372,8 @@ export class TraksidianSettingTab extends PluginSettingTab {
       })
     );
 
-    // ── Sync Sources ──
-    containerEl.createEl("h3", { text: "Sync Sources" });
+    // ── Sync sources ──
+    new Setting(containerEl).setName("Sync sources").setHeading();
 
     new Setting(containerEl)
       .setName("Sync watchlist")
@@ -423,8 +423,8 @@ export class TraksidianSettingTab extends PluginSettingTab {
           })
       );
 
-    // ── Sync Behavior ──
-    containerEl.createEl("h3", { text: "Sync Behavior" });
+    // ── Sync behavior ──
+    new Setting(containerEl).setName("Sync behavior").setHeading();
 
     new Setting(containerEl)
       .setName("Sync movies")

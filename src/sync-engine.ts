@@ -1,4 +1,4 @@
-import { App, Notice, TFile, TFolder } from "obsidian";
+import { App, Notice, TFile, TFolder, normalizePath } from "obsidian";
 import type { TraksidianSettings } from "./settings";
 import type {
   TraktWatchlistItem,
@@ -22,7 +22,7 @@ import {
 } from "./trakt-api";
 import { fetchMoviePosterUrl, fetchTvPosterUrl } from "./tmdb-api";
 import { ensureValidToken } from "./trakt-auth";
-import { renderNote, renderFrontmatterOnly } from "./note-renderer";
+import { renderNote, buildFrontmatterData } from "./note-renderer";
 import { sanitizeFilename, renderTemplate, parseFrontmatter } from "./utils";
 
 // ── Normalization helpers ──
@@ -312,7 +312,7 @@ export class SyncEngine {
     mergedItems: Map<string, NormalizedItem>,
     result: SyncResult
   ): Promise<void> {
-    const folderPath = this.settings.folder;
+    const folderPath = normalizePath(this.settings.folder);
     await ensureFolder(this.app, folderPath);
 
     const localNotes = await scanExistingNotes(
@@ -345,21 +345,30 @@ export class SyncEngine {
         if (!existingFile) {
           // CREATE
           const filename = buildFilename(item, this.settings.filenameTemplate);
-          const filePath = `${folderPath}/${filename}.md`;
+          const filePath = normalizePath(`${folderPath}/${filename}.md`);
           await this.app.vault.create(filePath, renderNote(item, this.settings));
           result.added++;
         } else {
           // UPDATE
           if (this.settings.overwriteExisting) {
-            await this.app.vault.modify(existingFile, renderNote(item, this.settings));
+            // Replace full note content atomically
+            await this.app.vault.process(existingFile, () =>
+              renderNote(item, this.settings)
+            );
           } else {
-            // Frontmatter-only update: preserve the body
-            const existingContent = await this.app.vault.read(existingFile);
-            const { body } = parseFrontmatter(existingContent);
-            const newFrontmatter = renderFrontmatterOnly(item, this.settings);
-            await this.app.vault.modify(
+            // Frontmatter-only update via Obsidian's API — preserves the note body
+            await this.app.fileManager.processFrontMatter(
               existingFile,
-              `---\n${newFrontmatter}\n---\n${body}`
+              (fm) => {
+                const newData = buildFrontmatterData(item, this.settings);
+                for (const [key, value] of Object.entries(newData)) {
+                  if (value === null || value === undefined) {
+                    delete fm[key];
+                  } else {
+                    fm[key] = value;
+                  }
+                }
+              }
             );
           }
           result.updated++;
