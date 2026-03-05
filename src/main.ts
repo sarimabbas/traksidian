@@ -15,11 +15,13 @@ export default class TraksidianPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    console.debug(
+      "[Traksidian] Plugin loaded. Connected:",
+      !!this.settings.accessToken,
+    );
 
-    this.syncEngine = new SyncEngine(
-      this.app,
-      this.settings,
-      () => this.saveSettings()
+    this.syncEngine = new SyncEngine(this.app, this.settings, () =>
+      this.saveSettings(),
     );
 
     // Settings tab
@@ -32,13 +34,13 @@ export default class TraksidianPlugin extends Plugin {
       callback: async () => {
         if (!this.settings.accessToken) {
           new Notice(
-            "Not connected to Trakt. Use Settings or the command palette to connect."
+            "Not connected to Trakt. Use Settings or the command palette to connect.",
           );
           return;
         }
-        this.updateStatusBar("Syncing...");
+        this.updateStatusBar("⟳ Syncing…");
         await this.syncEngine.sync();
-        this.updateStatusBar("Connected");
+        this.updateStatusBar("");
       },
     });
 
@@ -46,12 +48,9 @@ export default class TraksidianPlugin extends Plugin {
       id: "trakt-connect",
       name: "Connect account",
       callback: async () => {
-        if (
-          !this.settings.clientId ||
-          !this.settings.clientSecret
-        ) {
+        if (!this.settings.clientId || !this.settings.clientSecret) {
           new Notice(
-            "Please configure your Trakt Client ID and Secret in settings first."
+            "Please configure your Trakt Client ID and Secret in settings first.",
           );
           return;
         }
@@ -68,28 +67,11 @@ export default class TraksidianPlugin extends Plugin {
         this.settings.tokenExpiresAt = 0;
         await this.saveSettings();
         new Notice("Disconnected from Trakt.");
-        this.updateStatusBar("Not connected");
       },
     });
 
-    // Ribbon icon
-    this.addRibbonIcon("film", "Sync Traksidian", async () => {
-      if (!this.settings.accessToken) {
-        new Notice(
-          "Not connected to Trakt. Use Settings or the command palette to connect."
-        );
-        return;
-      }
-      this.updateStatusBar("Syncing...");
-      await this.syncEngine.sync();
-      this.updateStatusBar("Connected");
-    });
-
-    // Status bar
+    // Status bar — only shown transiently during sync
     this.statusBarEl = this.addStatusBarItem();
-    this.updateStatusBar(
-      this.settings.accessToken ? "Connected" : "Not connected"
-    );
 
     // Auto-sync
     this.configureAutoSync();
@@ -97,19 +79,15 @@ export default class TraksidianPlugin extends Plugin {
     // Sync on startup (delayed to let Obsidian finish loading)
     if (this.settings.syncOnStartup && this.settings.accessToken) {
       window.setTimeout(async () => {
-        this.updateStatusBar("Syncing...");
+        this.updateStatusBar("⟳ Syncing…");
         await this.syncEngine.sync();
-        this.updateStatusBar("Connected");
+        this.updateStatusBar("");
       }, 5000);
     }
   }
 
   async loadSettings() {
-    this.settings = Object.assign(
-      {},
-      DEFAULT_SETTINGS,
-      await this.loadData()
-    );
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
 
   async saveSettings() {
@@ -122,7 +100,6 @@ export default class TraksidianPlugin extends Plugin {
   async startAuth(): Promise<void> {
     const modal = new AuthModal(this.app, this.settings, async () => {
       await this.saveSettings();
-      this.updateStatusBar("Connected");
     });
     modal.open();
   }
@@ -137,12 +114,8 @@ export default class TraksidianPlugin extends Plugin {
       this.autoSyncIntervalId = null;
     }
 
-    if (
-      this.settings.autoSyncEnabled &&
-      this.settings.accessToken
-    ) {
-      const intervalMs =
-        this.settings.autoSyncIntervalMinutes * 60 * 1000;
+    if (this.settings.autoSyncEnabled && this.settings.accessToken) {
+      const intervalMs = this.settings.autoSyncIntervalMinutes * 60 * 1000;
       this.autoSyncIntervalId = window.setInterval(async () => {
         try {
           await this.syncEngine.sync();
@@ -157,7 +130,7 @@ export default class TraksidianPlugin extends Plugin {
 
   private updateStatusBar(status: string) {
     if (this.statusBarEl) {
-      this.statusBarEl.setText(`Traksidian: ${status}`);
+      this.statusBarEl.setText(status ? `Traksidian: ${status}` : "");
     }
   }
 }

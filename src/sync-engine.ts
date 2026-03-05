@@ -180,6 +180,7 @@ export class SyncEngine {
       errors: [],
     };
 
+    console.debug("[Traksidian] Sync started");
     try {
       // 1. Ensure valid token
       await ensureValidToken(this.settings, this.saveSettings);
@@ -193,15 +194,31 @@ export class SyncEngine {
         this.settings.syncShows ? this.fetchAndMergeShows(merged) : Promise.resolve(),
       ]);
 
-      // 3. Reconcile all items into the single notes folder
+      // 3. Ensure tag note files exist
+      await this.ensureTagNotes(merged);
+
+      // 4. Reconcile all items into the single notes folder
       await this.reconcileType(merged, result);
 
-      // 4. Show result
-      const msg = `Sync complete: ${result.added} added, ${result.updated} updated, ${result.removed} removed${result.failed > 0 ? `, ${result.failed} failed` : ""}`;
-      new Notice(msg, 5000);
+      // 5. Show result
+      console.debug(`[Traksidian] Sync complete — added: ${result.added}, updated: ${result.updated}, removed: ${result.removed}, failed: ${result.failed}`);
+      let msg = `Sync complete: ${result.added} added, ${result.updated} updated, ${result.removed} removed`;
+      if (result.failed > 0) {
+        msg += `, ${result.failed} failed`;
+        console.group(`[Traksidian] Sync completed with ${result.failed} failure(s)`);
+        for (const err of result.errors) {
+          console.error(err);
+        }
+        console.groupEnd();
+      }
+      new Notice(msg, result.failed > 0 ? 10000 : 5000);
+      if (result.failed > 0) {
+        new Notice(`Traksidian: ${result.errors[0]}${result.errors.length > 1 ? ` (+${result.errors.length - 1} more — see console)` : ""}`, 10000);
+      }
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Unknown error during sync.";
+      console.error("[Traksidian] Sync failed:", e);
       new Notice(`Traksidian sync failed: ${msg}`, 10000);
       result.errors.push(msg);
     } finally {
@@ -209,6 +226,45 @@ export class SyncEngine {
     }
 
     return result;
+  }
+
+  /**
+   * Create tag note files for all tag notes referenced by the merged items.
+   * Only creates files that don't already exist — never overwrites.
+   */
+  private async ensureTagNotes(
+    mergedItems: Map<string, NormalizedItem>
+  ): Promise<void> {
+    if (!this.settings.createTagNotes) return;
+
+    const folder = this.settings.tagNotesFolder;
+    const pfx = folder ? `${folder}/` : "";
+
+    // Collect all unique note paths (without .md extension)
+    const paths = new Set<string>();
+    for (const item of mergedItems.values()) {
+      paths.add(`${pfx}${item.type}`);
+      for (const genre of item.genres) {
+        paths.add(`${pfx}genre/${genre}`);
+      }
+      if (item.watchlist) paths.add(`${pfx}watchlist`);
+      if (item.watched) paths.add(`${pfx}watched`);
+      if (item.favorite) paths.add(`${pfx}favorite`);
+      if (item.my_rating) paths.add(`${pfx}rated`);
+    }
+
+    for (const notePath of paths) {
+      const filePath = normalizePath(`${notePath}.md`);
+      // Ensure parent folder(s) exist
+      const lastSlash = filePath.lastIndexOf("/");
+      if (lastSlash > 0) {
+        await ensureFolder(this.app, filePath.slice(0, lastSlash));
+      }
+      // Create file only if it doesn't already exist
+      if (!this.app.vault.getAbstractFileByPath(filePath)) {
+        await this.app.vault.create(filePath, "");
+      }
+    }
   }
 
   /**
@@ -375,9 +431,9 @@ export class SyncEngine {
         }
       } catch (e) {
         result.failed++;
-        result.errors.push(
-          `Failed to sync "${item.title}": ${e instanceof Error ? e.message : String(e)}`
-        );
+        const msg = `Failed to sync "${item.title}" (${item.type} ${item.ids.trakt}): ${e instanceof Error ? e.message : String(e)}`;
+        result.errors.push(msg);
+        console.error("[Traksidian]", msg, e);
       }
     }
 
@@ -390,9 +446,9 @@ export class SyncEngine {
             result.removed++;
           } catch (e) {
             result.failed++;
-            result.errors.push(
-              `Failed to remove "${file.name}": ${e instanceof Error ? e.message : String(e)}`
-            );
+            const msg = `Failed to remove "${file.name}": ${e instanceof Error ? e.message : String(e)}`;
+            result.errors.push(msg);
+            console.error("[Traksidian]", msg, e);
           }
         }
       }

@@ -16,9 +16,23 @@ function imdbUrl(item: NormalizedItem): string | null {
  * friendly names so templates stay readable.
  */
 function buildTemplateContext(
-  item: NormalizedItem
+  item: NormalizedItem,
+  settings: TraksidianSettings
 ): Record<string, unknown> {
+  const folder = settings.tagNotesFolder;
+  const pfx = folder ? `${folder}/` : "";
+  const tagNoteLinks = [`[[${pfx}${item.type}]]`];
+  for (const genre of item.genres) {
+    tagNoteLinks.push(`[[${pfx}genre/${genre}]]`);
+  }
+  if (item.watchlist) tagNoteLinks.push(`[[${pfx}watchlist]]`);
+  if (item.watched) tagNoteLinks.push(`[[${pfx}watched]]`);
+  if (item.favorite) tagNoteLinks.push(`[[${pfx}favorite]]`);
+  if (item.my_rating) tagNoteLinks.push(`[[${pfx}rated]]`);
+  const tag_notes = tagNoteLinks.join(", ");
+
   return {
+    tag_notes,
     title: item.title,
     year: item.year,
     type: item.type,
@@ -71,16 +85,6 @@ export function buildFrontmatterData(
   settings: TraksidianSettings
 ): Record<string, unknown> {
   const p = settings.propertyPrefix;
-  const tagPfx = settings.tagPrefix;
-
-  const tags = [`${tagPfx}/${item.type}`];
-  for (const genre of item.genres) {
-    tags.push(`${tagPfx}/genre/${genre}`);
-  }
-  if (item.watchlist) tags.push(`${tagPfx}/watchlist`);
-  if (item.watched) tags.push(`${tagPfx}/watched`);
-  if (item.favorite) tags.push(`${tagPfx}/favorite`);
-  if (item.my_rating) tags.push(`${tagPfx}/rated`);
 
   const data: Record<string, unknown> = {};
 
@@ -156,7 +160,33 @@ export function buildFrontmatterData(
   data[`${p}imdb_url`] = imdbUrl(item);
   data[`${p}poster_url`] = item.poster_url || null;
   data[`${p}synced_at`] = new Date().toISOString();
-  data["tags"] = tags;
+
+  if (settings.addTags) {
+    const tagPfx = settings.tagPrefix;
+    const tags = [`${tagPfx}/${item.type}`];
+    for (const genre of item.genres) {
+      tags.push(`${tagPfx}/genre/${genre}`);
+    }
+    if (item.watchlist) tags.push(`${tagPfx}/watchlist`);
+    if (item.watched) tags.push(`${tagPfx}/watched`);
+    if (item.favorite) tags.push(`${tagPfx}/favorite`);
+    if (item.my_rating) tags.push(`${tagPfx}/rated`);
+    data["tags"] = tags;
+  }
+
+  if (settings.addTagNotes) {
+    const folder = settings.tagNotesFolder;
+    const pfx = folder ? `${folder}/` : "";
+    const tagNotes = [`[[${pfx}${item.type}]]`];
+    for (const genre of item.genres) {
+      tagNotes.push(`[[${pfx}genre/${genre}]]`);
+    }
+    if (item.watchlist) tagNotes.push(`[[${pfx}watchlist]]`);
+    if (item.watched) tagNotes.push(`[[${pfx}watched]]`);
+    if (item.favorite) tagNotes.push(`[[${pfx}favorite]]`);
+    if (item.my_rating) tagNotes.push(`[[${pfx}rated]]`);
+    data[`${p}tag_notes`] = tagNotes;
+  }
 
   return data;
 }
@@ -176,7 +206,7 @@ export function renderNote(
       ? settings.movieNoteTemplate
       : settings.showNoteTemplate;
 
-  const body = renderTemplate(template, buildTemplateContext(item));
+  const body = renderTemplate(template, buildTemplateContext(item, settings));
 
   return `---\n${frontmatter}\n---\n${body}`;
 }
