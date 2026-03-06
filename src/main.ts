@@ -54,7 +54,7 @@ export default class TraktrPlugin extends Plugin {
           );
           return;
         }
-        await this.startAuth();
+        this.startAuth();
       },
     });
 

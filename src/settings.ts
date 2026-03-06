@@ -231,7 +231,7 @@ export class TraktrSettingTab extends PluginSettingTab {
               new Notice("Please enter your Trakt client ID and secret first.");
               return;
             }
-            await this.plugin.startAuth();
+            this.plugin.startAuth();
             this.display();
           }),
       );
