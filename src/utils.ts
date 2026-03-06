@@ -17,7 +17,9 @@ export function renderTemplate(
     const value = context[key];
     if (value === undefined || value === null) return "";
     if (Array.isArray(value)) return value.join(", ");
-    return String(value);
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    return "";
   });
   // Strip lines that are markdown images with an empty URL (e.g. no TMDB key)
   return rendered

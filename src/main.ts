@@ -34,7 +34,7 @@ export default class TraktrPlugin extends Plugin {
       callback: async () => {
         if (!this.settings.accessToken) {
           new Notice(
-            "Not connected to Trakt. Use Settings or the command palette to connect.",
+            "Not connected to Trakt. Use settings or the command palette to connect.",
           );
           return;
         }
@@ -50,7 +50,7 @@ export default class TraktrPlugin extends Plugin {
       callback: async () => {
         if (!this.settings.clientId || !this.settings.clientSecret) {
           new Notice(
-            "Please configure your Trakt Client ID and Secret in settings first.",
+            "Please configure your Trakt client ID and secret in settings first.",
           );
           return;
         }
@@ -78,16 +78,19 @@ export default class TraktrPlugin extends Plugin {
 
     // Sync on startup (delayed to let Obsidian finish loading)
     if (this.settings.syncOnStartup && this.settings.accessToken) {
-      window.setTimeout(async () => {
-        this.updateStatusBar("⟳ Syncing…");
-        await this.syncEngine.sync();
-        this.updateStatusBar("");
+      window.setTimeout(() => {
+        void (async () => {
+          this.updateStatusBar("⟳ Syncing…");
+          await this.syncEngine.sync();
+          this.updateStatusBar("");
+        })();
       }, 5000);
     }
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = (await this.loadData()) as Partial<TraktrSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
   }
 
   async saveSettings() {
@@ -116,12 +119,14 @@ export default class TraktrPlugin extends Plugin {
 
     if (this.settings.autoSyncEnabled && this.settings.accessToken) {
       const intervalMs = this.settings.autoSyncIntervalMinutes * 60 * 1000;
-      this.autoSyncIntervalId = window.setInterval(async () => {
-        try {
-          await this.syncEngine.sync();
-        } catch (e) {
-          console.error("Trakt auto-sync failed:", e);
-        }
+      this.autoSyncIntervalId = window.setInterval(() => {
+        void (async () => {
+          try {
+            await this.syncEngine.sync();
+          } catch (e) {
+            console.error("Trakt auto-sync failed:", e);
+          }
+        })();
       }, intervalMs);
       // Register for cleanup
       this.registerInterval(this.autoSyncIntervalId);

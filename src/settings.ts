@@ -173,11 +173,11 @@ export class TraktrSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Authentication").setHeading();
 
     new Setting(containerEl)
-      .setName("Trakt Client ID")
+      .setName("Trakt client ID")
       .setDesc("Create an app at trakt.tv/oauth/applications to get this.")
       .addText((text) =>
         text
-          .setPlaceholder("Paste your Trakt Client ID")
+          .setPlaceholder("Paste your Trakt client ID")
           .setValue(this.plugin.settings.clientId)
           .onChange(async (value) => {
             this.plugin.settings.clientId = value.trim();
@@ -186,11 +186,11 @@ export class TraktrSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Trakt Client Secret")
+      .setName("Trakt client secret")
       .setDesc("From the same Trakt application page.")
       .addText((text) =>
         text
-          .setPlaceholder("Paste your Trakt Client Secret")
+          .setPlaceholder("Paste your Trakt client secret")
           .setValue(this.plugin.settings.clientSecret)
           .onChange(async (value) => {
             this.plugin.settings.clientSecret = value.trim();
@@ -228,7 +228,7 @@ export class TraktrSettingTab extends PluginSettingTab {
               !this.plugin.settings.clientId ||
               !this.plugin.settings.clientSecret
             ) {
-              new Notice("Please enter your Trakt Client ID and Secret first.");
+              new Notice("Please enter your Trakt client ID and secret first.");
               return;
             }
             await this.plugin.startAuth();

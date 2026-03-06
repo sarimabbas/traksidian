@@ -62,7 +62,7 @@ export class AuthModal extends Modal {
         cls: "traktr-auth-code",
       });
       codeEl.addEventListener("click", () => {
-        navigator.clipboard.writeText(deviceCode.user_code);
+        void navigator.clipboard.writeText(deviceCode.user_code);
         new Notice("Code copied to clipboard!");
       });
       codeContainer.createEl("small", {
@@ -95,43 +95,45 @@ export class AuthModal extends Modal {
 
       // Start polling
       const pollIntervalMs = (deviceCode.interval || 5) * 1000;
-      this.pollInterval = window.setInterval(async () => {
-        if (this.cancelled) {
-          this.clearPolling();
-          this.clearCountdown();
-          return;
-        }
-
-        try {
-          const token = await pollDeviceToken(
-            deviceCode.device_code,
-            this.settings.clientId,
-            this.settings.clientSecret
-          );
-
-          if (token) {
+      this.pollInterval = window.setInterval(() => {
+        void (async () => {
+          if (this.cancelled) {
             this.clearPolling();
             this.clearCountdown();
-
-            // Save tokens
-            this.settings.accessToken = token.access_token;
-            this.settings.refreshToken = token.refresh_token;
-            this.settings.tokenExpiresAt =
-              (token.created_at + token.expires_in) * 1000;
-
-            await this.onSuccess();
-
-            new Notice("Successfully connected to Trakt!");
-            this.close();
+            return;
           }
-        } catch (e) {
-          if (e instanceof TraktApiError && !e.isRetryable) {
-            this.clearPolling();
-            this.clearCountdown();
-            statusEl.setText(`Error: ${e.message}`);
+
+          try {
+            const token = await pollDeviceToken(
+              deviceCode.device_code,
+              this.settings.clientId,
+              this.settings.clientSecret
+            );
+
+            if (token) {
+              this.clearPolling();
+              this.clearCountdown();
+
+              // Save tokens
+              this.settings.accessToken = token.access_token;
+              this.settings.refreshToken = token.refresh_token;
+              this.settings.tokenExpiresAt =
+                (token.created_at + token.expires_in) * 1000;
+
+              await this.onSuccess();
+
+              new Notice("Successfully connected to Trakt!");
+              this.close();
+            }
+          } catch (e) {
+            if (e instanceof TraktApiError && !e.isRetryable) {
+              this.clearPolling();
+              this.clearCountdown();
+              statusEl.setText(`Error: ${e.message}`);
+            }
+            // For retryable errors (429), just skip this poll cycle
           }
-          // For retryable errors (429), just skip this poll cycle
-        }
+        })();
       }, pollIntervalMs);
     } catch (e) {
       statusEl.setText(

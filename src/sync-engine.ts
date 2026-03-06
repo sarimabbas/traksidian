@@ -414,7 +414,7 @@ export class SyncEngine {
             // Frontmatter-only update via Obsidian's API — preserves the note body
             await this.app.fileManager.processFrontMatter(
               existingFile,
-              (fm) => {
+              (fm: Record<string, unknown>) => {
                 const newData = buildFrontmatterData(item, this.settings);
                 for (const [key, value] of Object.entries(newData)) {
                   if (value === null || value === undefined) {
@@ -441,7 +441,7 @@ export class SyncEngine {
       for (const [key, file] of localNotes) {
         if (!mergedItems.has(key)) {
           try {
-            await this.app.vault.trash(file, true);
+            await this.app.fileManager.trashFile(file);
             result.removed++;
           } catch (e) {
             result.failed++;
